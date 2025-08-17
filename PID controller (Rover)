@@ -1,0 +1,170 @@
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <PID_v1.h>
+
+// *MPU6050 Instance*
+Adafruit_MPU6050 mpu;
+
+// *Motor Control Pins*
+#define PUL1 2
+#define DIR1 3
+#define ENA1 4
+#define PUL2 5
+#define DIR2 6
+#define ENA2 7
+#define PUL3 8
+#define DIR3 9
+#define ENA3 10
+#define PUL4 11
+#define DIR4 12
+#define ENA4 13
+
+// *PID Variables for Roll & Pitch*
+double rollSetpoint = 0, rollInput, rollError, rollOutput;
+double pitchSetpoint = 0, pitchInput, pitchError, pitchOutput;
+double Kp = 8.0, Ki = 0.5, Kd = 5.0;  // *Stronger PID correction for climbing & stability*
+
+PID rollPID(&rollInput, &rollOutput, &rollSetpoint, Kp, Ki, Kd, DIRECT);
+PID pitchPID(&pitchInput, &pitchOutput, &pitchSetpoint, Kp, Ki, Kd, DIRECT);
+
+// *Dead-zone for tiny movements*
+const double deadZone = 1.5;
+bool motorsActive = false;
+
+void setup() {
+    Serial.begin(9600);
+    Serial.println("Initializing MPU6050...");
+
+    if (!mpu.begin()) {
+        Serial.println("MPU6050 NOT FOUND!");
+        while (1);
+    }
+    Serial.println("MPU6050 Found!");
+
+    // *Set Motor Pins as Output*
+    pinMode(PUL1, OUTPUT); pinMode(DIR1, OUTPUT); pinMode(ENA1, OUTPUT);
+    pinMode(PUL2, OUTPUT); pinMode(DIR2, OUTPUT); pinMode(ENA2, OUTPUT);
+    pinMode(PUL3, OUTPUT); pinMode(DIR3, OUTPUT); pinMode(ENA3, OUTPUT);
+    pinMode(PUL4, OUTPUT); pinMode(DIR4, OUTPUT); pinMode(ENA4, OUTPUT);
+
+    // *Enable Motors Initially*
+    enableMotors();
+
+    // *Initialize PID Controllers*
+    rollPID.SetMode(AUTOMATIC);
+    rollPID.SetOutputLimits(-255, 255);  
+    pitchPID.SetMode(AUTOMATIC);
+    pitchPID.SetOutputLimits(-255, 255);
+
+    // *Calibration Phase - Wait for Gyro to Stabilize*
+    Serial.println("Calibrating gyroscope... Please wait.");
+    delay(3000);  
+    Serial.println("Calibration complete! Starting stabilization.");
+}
+
+void loop() {
+    // *Read Sensor Data from MPU6050*
+    sensors_event_t a, g, temp;
+    mpu.getEvent(&a, &g, &temp);
+
+    // *Calculate Roll & Pitch Angles*
+    rollInput = atan2(a.acceleration.y, a.acceleration.z) * 180 / PI;
+    pitchInput = atan2(-a.acceleration.x, sqrt(a.acceleration.y * a.acceleration.y + a.acceleration.z * a.acceleration.z)) * 180 / PI;
+
+    // *Calculate Errors*
+    rollError = rollSetpoint - rollInput;
+    pitchError = pitchSetpoint - pitchInput;
+
+    // *If Near (0,0,0), Reduce Movements*
+    if (abs(rollError) < deadZone && abs(pitchError) < deadZone) {
+        fineAdjustMotors();  
+    } else {
+        motorsActive = true;
+        enableMotors();
+        rollPID.Compute();
+        pitchPID.Compute();
+        controlMotors(rollError, pitchError);
+    }
+
+    // *Debugging Output for Serial Monitor*
+    Serial.print("Roll: "); Serial.print(rollInput);
+    Serial.print(" | Pitch: "); Serial.print(pitchInput);
+    Serial.print(" | Roll Error: "); Serial.print(rollError);
+    Serial.print(" | Pitch Error: "); Serial.print(pitchError);
+    Serial.print(" | Roll Correction: "); Serial.print(rollOutput);
+    Serial.print(" | Pitch Correction: "); Serial.println(pitchOutput);
+}
+
+void controlMotors(double roll, double pitch) {
+    enableMotors();
+
+    // *Motor Direction Adjustments for Forward & Backward Tilt*
+    if (pitch > 0) {
+        // *Forward Tilt*
+        digitalWrite(DIR1, LOW);  // Motor 1 (FL) → CCW
+        digitalWrite(DIR2, LOW);  // Motor 2 (RL) → CCW
+        digitalWrite(DIR3, HIGH); // Motor 3 (RR) → CW
+        digitalWrite(DIR4, HIGH); // Motor 4 (FR) → CW
+    } else {
+        // *Backward Tilt*
+        digitalWrite(DIR1, HIGH); // Motor 1 (FL) → CW
+        digitalWrite(DIR2, HIGH); // Motor 2 (RL) → CW
+        digitalWrite(DIR3, LOW);  // Motor 3 (RR) → CCW
+        digitalWrite(DIR4, LOW);  // Motor 4 (FR) → CCW
+    }
+
+    // *Motor Direction Adjustments for Left & Right Tilt*
+    if (roll > 0) {
+        // *Right Tilt*
+        digitalWrite(DIR1, LOW);  // Motor 1 (FL) → CCW
+        digitalWrite(DIR2, HIGH); // Motor 2 (RL) → CW
+        digitalWrite(DIR3, LOW);  // Motor 3 (RR) → CCW
+        digitalWrite(DIR4, HIGH); // Motor 4 (FR) → CW
+    } else {
+        // *Left Tilt*
+        digitalWrite(DIR1, HIGH); // Motor 1 (FL) → CW
+        digitalWrite(DIR2, LOW);  // Motor 2 (RL) → CCW
+        digitalWrite(DIR3, HIGH); // Motor 3 (RR) → CW
+        digitalWrite(DIR4, LOW);  // Motor 4 (FR) → CCW
+    }
+
+    // *Smooth Step Delay & Steps*
+    int stepDelay = map(max(abs(rollOutput), abs(pitchOutput)), 0, 255, 500, 150);  
+    int totalSteps = constrain(max(abs(rollOutput), abs(pitchOutput)) / 10, 20, 70);  
+
+    for (int i = 0; i < totalSteps; i++) {
+        digitalWrite(PUL1, HIGH); digitalWrite(PUL2, HIGH);
+        digitalWrite(PUL3, HIGH); digitalWrite(PUL4, HIGH);
+        delayMicroseconds(stepDelay);
+        digitalWrite(PUL1, LOW); digitalWrite(PUL2, LOW);
+        digitalWrite(PUL3, LOW); digitalWrite(PUL4, LOW);
+        delayMicroseconds(stepDelay);
+    }
+}
+
+// *Fine Adjustments for Continuous Stabilization Instead of Stopping*
+void fineAdjustMotors() {
+    int fineStepDelay = 1800;  
+    int fineSteps = 6;  
+
+    for (int i = 0; i < fineSteps; i++) {
+        digitalWrite(PUL1, HIGH); digitalWrite(PUL2, HIGH);
+        digitalWrite(PUL3, HIGH); digitalWrite(PUL4, HIGH);
+        delayMicroseconds(fineStepDelay);
+        digitalWrite(PUL1, LOW); digitalWrite(PUL2, LOW);
+        digitalWrite(PUL3, LOW); digitalWrite(PUL4, LOW);
+        delayMicroseconds(fineStepDelay);
+    }
+}
+
+void enableMotors() {
+    digitalWrite(ENA1, LOW);
+    digitalWrite(ENA2, LOW);
+    digitalWrite(ENA3, LOW);
+    digitalWrite(ENA4, LOW);
+}
+
+void stopMotors() {
+    fineAdjustMotors(); 
+}
