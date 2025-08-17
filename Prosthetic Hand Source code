@@ -1,0 +1,229 @@
+// Define servo motor pins
+  #define SERVO1_PIN 9
+  #define SERVO2_PIN 10
+  #define SERVO3_PIN 11
+  #define SERVO4_PIN 12
+  #define SERVO5_PIN 13
+
+  // Define flex sensor pins
+  #define FLEX1_PIN A0
+  #define FLEX2_PIN A1
+  #define FLEX3_PIN A2
+  #define FLEX4_PIN A3
+  #define FLEX5_PIN A4
+
+  // Define flex sensor calibration values (adjust these based on your sensors)
+  const int FLEX1_STRAIGHT = 742;  // Analog reading when flex sensor 1 is straight
+  const int FLEX1_BENT = 771;    // Analog reading when flex sensor 1 is fully bent
+  const int FLEX2_STRAIGHT = 759;  // Analog reading when flex sensor 2 is straight
+  const int FLEX2_BENT = 790;    // Analog reading when flex sensor 2 is fully bent
+  const int FLEX3_STRAIGHT = 770;  // Analog reading when flex sensor 2 is straight
+  const int FLEX3_BENT = 800;    // Analog reading when flex sensor 2 is fully bent
+  const int FLEX4_STRAIGHT = 350;  // Analog reading when flex sensor 2 is straight
+  const int FLEX4_BENT = 650;    // Analog reading when flex sensor 2 is fully bent
+  const int FLEX5_STRAIGHT = 785;  // Analog reading when flex sensor 2 is straight
+  const int FLEX5_BENT = 802;    // Analog reading when flex sensor 2 is fully bent
+
+  // Define servo motor range (adjust these based on your servos)
+  const int SERVO_MIN = 0;       // Minimum servo angle (degrees)
+  const int SERVO_MAX = 180;     // Maximum servo angle (degrees)
+
+  // Calibration Mode
+  #define CALIBRATION_MODE false  // Set to true to enter calibration mode, false for normal operation
+  #define CALIBRATION_SERVO 1    // Servo to calibrate (1 or 2)
+  #define CALIBRATION_ANGLE 90   // Angle to calibrate the servo to (degrees)
+
+  // Manual Servo Control Mode
+  #define MANUAL_SERVO_CONTROL false // Set to true to enable manual servo control, false for flex sensor control
+  #define MANUAL_SERVO 1            // Servo to control manually (1 or 2)
+  #define MANUAL_SERVO_ANGLE 45      // Angle to set the servo to (degrees)
+
+  #include <Servo.h>
+
+  Servo servo1;
+  Servo servo2;
+  Servo servo3;
+  Servo servo4;
+  Servo servo5;
+
+  void setup() {
+    // Initialize serial communication for debugging
+    Serial.begin(9600);
+
+    // Attach servo motors to their pins
+    servo1.attach(SERVO1_PIN);
+    servo2.attach(SERVO2_PIN);
+    servo3.attach(SERVO3_PIN);
+    servo4.attach(SERVO4_PIN);
+    servo5.attach(SERVO5_PIN);
+
+    if (CALIBRATION_MODE) {
+      Serial.println("Entering Calibration Mode...");
+      Serial.print("Calibrating Servo ");
+      Serial.print(CALIBRATION_SERVO);
+      Serial.print(" to ");
+      Serial.print(CALIBRATION_ANGLE);
+      Serial.println(" degrees.");
+
+      // Move the specified servo to the calibration angle
+      if (CALIBRATION_SERVO == 1) {
+        servo1.write(CALIBRATION_ANGLE);
+      } else if (CALIBRATION_SERVO == 2) {
+        servo2.write(CALIBRATION_ANGLE);
+      }  else if (CALIBRATION_SERVO == 3) {
+        servo3.write(CALIBRATION_ANGLE);
+      } else if (CALIBRATION_SERVO == 4) {
+        servo4.write(CALIBRATION_ANGLE);
+      } else if (CALIBRATION_SERVO == 5) {
+        servo5.write(CALIBRATION_ANGLE);
+      } else {
+        Serial.println("Invalid CALIBRATION_SERVO value.  No servo calibrated.");
+      }
+
+      Serial.println("Move the flex sensor until the servo reaches the desired angle.");
+      Serial.println("Note the flex sensor reading and update FLEXx_STRAIGHT or FLEXx_BENT accordingly.");
+      Serial.println("Then, set CALIBRATION_MODE to false and re-upload the code.");
+
+      while (true) { // Infinite loop to hold the calibration position
+        // Read flex sensor values (for monitoring during calibration)
+        int flex1Value = analogRead(FLEX1_PIN);
+        int flex2Value = analogRead(FLEX2_PIN);
+        int flex3Value = analogRead(FLEX3_PIN);
+        int flex4Value = analogRead(FLEX4_PIN);
+        int flex5Value = analogRead(FLEX5_PIN);
+
+        Serial.print("Flex Sensor 1: ");
+        Serial.print(flex1Value);
+        Serial.print("  Flex Sensor 2: ");
+        Serial.println(flex2Value);
+        Serial.print("  Flex Sensor 3: ");
+        Serial.println(flex3Value);
+        Serial.print("  Flex Sensor 4: ");
+        Serial.println(flex4Value);
+        Serial.print("  Flex Sensor 5: ");
+        Serial.println(flex5Value);
+
+        delay(1000); // Reduce serial output rate
+      }
+    } else if (MANUAL_SERVO_CONTROL) {
+      Serial.println("Entering Manual Servo Control Mode...");
+      Serial.print("Setting Servo ");
+      Serial.print(MANUAL_SERVO);
+      Serial.print(" to ");
+      Serial.print(MANUAL_SERVO_ANGLE);
+      Serial.println(" degrees.");
+
+      // Move the specified servo to the specified angle
+      if (MANUAL_SERVO == 1) {
+        servo1.write(MANUAL_SERVO_ANGLE);
+      } else if (MANUAL_SERVO == 2) {
+        servo2.write(MANUAL_SERVO_ANGLE);
+      } 
+      else if (MANUAL_SERVO == 3) {
+        servo3.write(MANUAL_SERVO_ANGLE);
+      } 
+      else if (MANUAL_SERVO == 4) {
+        servo4.write(MANUAL_SERVO_ANGLE);
+      } 
+      else if (MANUAL_SERVO == 5) {
+        servo5.write(MANUAL_SERVO_ANGLE);
+      } else {
+        Serial.println("Invalid MANUAL_SERVO value. No servo set.");
+      }
+
+      Serial.println("Servo set to the specified angle.  Set MANUAL_SERVO_CONTROL to false to return to flex sensor control.");
+
+      while (true) { // Infinite loop to hold the servo at the specified angle
+        delay(100); // Prevent the loop from running too fast
+      }
+    } else {
+      // Normal operation
+      servo1.write(90); // Initial position
+      servo2.write(90); // Initial position
+      servo3.write(90); // Initial position
+      servo4.write(90); // Initial position
+      servo5.write(90); // Initial position
+      delay(500);
+    }
+  }
+
+
+void loop() {
+  if (!CALIBRATION_MODE && !MANUAL_SERVO_CONTROL) {
+    // Read flex sensor values
+    int flex1Value = analogRead(FLEX1_PIN);
+    int flex2Value = analogRead(FLEX2_PIN);
+    int flex3Value = analogRead(FLEX3_PIN);
+    int flex4Value = analogRead(FLEX4_PIN);
+    int flex5Value = analogRead(FLEX5_PIN);
+
+    // Print flex sensor values to serial monitor for debugging
+    Serial.print("Flex Sensor 1: ");
+    Serial.print(flex1Value);
+    Serial.print("  Flex Sensor 2: ");
+    Serial.println(flex2Value);
+    Serial.print("  Flex Sensor 3: ");
+    Serial.println(flex3Value);
+    Serial.print("  Flex Sensor 4: ");
+    Serial.println(flex4Value);
+    Serial.print("  Flex Sensor 5: ");
+    Serial.println(flex5Value);
+
+    // Map flex sensor values to servo angles
+    int servo1Angle = map(flex1Value, FLEX1_STRAIGHT, FLEX1_BENT, SERVO_MIN, SERVO_MAX);
+    int servo2Angle = map(flex2Value, FLEX2_STRAIGHT, FLEX2_BENT, SERVO_MIN, SERVO_MAX);
+    int servo3Angle = map(flex3Value, FLEX3_STRAIGHT, FLEX3_BENT, SERVO_MIN, SERVO_MAX);
+    int servo4Angle = map(flex4Value, FLEX4_STRAIGHT, FLEX4_BENT, SERVO_MIN, SERVO_MAX);
+    int servo5Angle = map(flex5Value, FLEX5_STRAIGHT, FLEX5_BENT, SERVO_MIN, SERVO_MAX);
+
+    // Constrain servo angles to the valid range
+    servo1Angle = constrain(servo1Angle, SERVO_MIN, SERVO_MAX);
+    servo2Angle = constrain(servo2Angle, SERVO_MIN, SERVO_MAX);
+    servo3Angle = constrain(servo3Angle, SERVO_MIN, SERVO_MAX);
+    servo4Angle = constrain(servo4Angle, SERVO_MIN, SERVO_MAX);
+    servo5Angle = constrain(servo5Angle, SERVO_MIN, SERVO_MAX);
+
+    // Add a check to see if the servo angle has changed significantly
+    static int previousServo1Angle = 90; // Initialize to the initial position
+    static int previousServo2Angle = 90;
+    static int previousServo3Angle = 90;
+    static int previousServo4Angle = 90;
+    static int previousServo5Angle = 90;
+
+    if (abs(servo1Angle - previousServo1Angle) > 2) { // Only write if the angle has changed by more than 2 degrees
+      servo1.write(servo1Angle);
+      previousServo1Angle = servo1Angle;
+    }
+    if (abs(servo2Angle - previousServo2Angle) > 2) {
+      servo2.write(servo2Angle);
+      previousServo2Angle = servo2Angle;
+    }
+        if (abs(servo3Angle - previousServo3Angle) > 2) {
+      servo3.write(servo3Angle);
+      previousServo3Angle = servo3Angle;
+    }
+        if (abs(servo4Angle - previousServo4Angle) > 2) {
+      servo4.write(servo4Angle);
+      previousServo4Angle = servo4Angle;
+    }
+        if (abs(servo5Angle - previousServo5Angle) > 2) {
+      servo5.write(servo5Angle);
+      previousServo5Angle = servo5Angle;
+    }
+
+    // Print servo angles to serial monitor for debugging
+    Serial.print("Servo 1 Angle: ");
+    Serial.print(servo1Angle);
+    Serial.print("  Servo 2 Angle: ");
+    Serial.println(servo2Angle);
+        Serial.print("Servo 3 Angle: ");
+    Serial.println(servo3Angle);
+        Serial.print("Servo 4 Angle: ");
+    Serial.println(servo4Angle);
+        Serial.print("Servo 5 Angle: ");
+    Serial.println(servo5Angle);
+
+    // Delay for stability
+    delay(1000);
+  }
+}
